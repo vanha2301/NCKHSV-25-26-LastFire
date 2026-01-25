@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>🔥 Fire Risk Dashboard</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Leaflet (CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b0f19; --text:#e5e7eb; --muted:#94a3b8; --line: rgba(255,255,255,.08);
+      --shadow: 0 10px 30px rgba(0,0,0,.35); --radius: 16px;
+      --low:#22c55e; --watch:#eab308; --warn:#fb923c; --high:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: Inter, Arial, sans-serif;
+      background:
+        radial-gradient(900px 500px at 20% -10%, rgba(59,130,246,.25), transparent),
+        radial-gradient(900px 500px at 90% 0%, rgba(239,68,68,.18), transparent),
+        var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:1180px; margin:0 auto; padding:22px}
+    .top{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      padding:16px 18px; border:1px solid var(--line); border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+    }
+    h1{margin:0; font-size:18px}
+    .pill{padding:6px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:12px}
+    .spacer{flex:1}
+    button{
+      padding:10px 14px; border-radius:12px; border:1px solid var(--line);
+      background: rgba(255,255,255,.06); color:var(--text); cursor:pointer; font-weight:700;
+    }
+    button:hover{background: rgba(255,255,255,.10)}
+    button:disabled{opacity:.6; cursor:not-allowed}
+
+    .cards{display:grid; grid-template-columns: repeat(4, minmax(160px,1fr)); gap:12px; margin:14px 0}
+    .card{
+      border:1px solid var(--line); border-radius: var(--radius); padding:14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      min-height:92px;
+    }
+    .k{color:var(--muted); font-size:12px}
+    .v{font-size:22px; font-weight:900; margin-top:8px}
+    .sub{color:var(--muted); font-size:12px; margin-top:6px; line-height:1.4}
+
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin:14px 0}
+    @media (max-width: 980px){ .grid2{grid-template-columns:1fr} }
+
+    .filters{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      border:1px solid var(--line); border-radius: var(--radius); padding:12px 14px;
+      background: rgba(255,255,255,.03);
+      box-shadow: var(--shadow);
+    }
+    input, select{
+      padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+      background: rgba(17,24,39,.6); color:var(--text); outline:none;
+    }
+    label{color:var(--muted); font-size:13px; display:flex; align-items:center; gap:8px}
+    input[type="range"]{accent-color: #9ca3af}
+
+    .tableWrap{
+      margin-top:12px;
+      border:1px solid var(--line); border-radius: var(--radius);
+      background: rgba(255,255,255,.02);
+      overflow:auto; max-height:62vh;
+      box-shadow: var(--shadow);
+    }
+    table{border-collapse:collapse; width:100%}
+    th, td{padding:12px 12px; border-bottom:1px solid var(--line); font-size:13px; text-align:left; white-space:nowrap}
+    th{
+      position:sticky; top:0; z-index:2;
+      background: rgba(15,23,42,.95);
+      color: var(--muted); font-weight:800;
+      backdrop-filter: blur(8px);
+    }
+    tr:hover td{background: rgba(255,255,255,.03)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+
+    .badge{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px; border:1px solid var(--line);
+      font-weight:800;
+    }
+    .dot{width:10px; height:10px; border-radius:50%}
+    .LOW .dot{background:var(--low)}
+    .WATCH .dot{background:var(--watch)}
+    .WARNING .dot{background:var(--warn)}
+    .HIGH .dot{background:var(--high)}
+
+    .alertRow td{background: rgba(239,68,68,.08)}
+    .alertText{color:#fecaca; font-weight:900}
+    .muted{color:var(--muted)}
+    .right{margin-left:auto}
+    .small{font-size:12px}
+    .chartBox{height:320px}
+    #map{height:420px; border-radius:12px; overflow:hidden; border:1px solid var(--line); display:none; margin-top:12px}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>🔥 Last Fire -  Dự đoán cháy 7 ngày tới</h1>
+    <span class="pill" id="metaLine">BASE - | - → - | TH -</span>
+    <span class="pill" id="tsLine">Updated: -</span>
+    <div class="spacer"></div>
+    <button id="runBtn">Run now</button>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">Total nodes</div>
+      <div class="v" id="totalNodes">-</div>
+      <div class="sub">Số node trong nodes.npy</div>
+    </div>
+    <div class="card">
+      <div class="k">Alerts</div>
+      <div class="v" id="totalAlerts">-</div>
+      <div class="sub">prob ≥ TH_ALERT</div>
+    </div>
+    <div class="card">
+      <div class="k">Max node (ID + prob%)</div>
+      <div class="v" id="maxNodeLine">-</div>
+      <div class="sub" id="maxNodeLatLon">-</div>
+    </div>
+    <div class="card">
+      <div class="k">Risk summary</div>
+      <div class="v small" id="riskSum">-</div>
+      <div class="sub">LOW / WATCH / WARNING / HIGH</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid2">
+    <div class="card">
+      <div class="k">Risk distribution (click để lọc)</div>
+      <div class="chartBox"><canvas id="riskChart"></canvas></div>
+      <div class="sub">Biểu đồ cột: số node theo mức risk</div>
+    </div>
+    <div class="card">
+      <div class="k">Top nodes by prob% (7 ngày tới)</div>
+      <div class="chartBox"><canvas id="topChart"></canvas></div>
+      <div class="sub">Thanh ngang: node có prob cao nhất</div>
+    </div>
+  </div>
+
+  <!-- Map Card -->
+  <div class="card">
+    <div class="k">Bản đồ cảnh báo (đánh dấu + khoanh vùng)</div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:10px">
+      <label><input type="checkbox" id="showMap"> Hiện bản đồ</label>
+      <label><input type="checkbox" id="mapOnlyAlert" checked> Chỉ vẽ node alert</label>
+      <label>Bán kính khoanh vùng (km):
+        <input type="range" id="radiusKm" min="1" max="50" value="10">
+      </label>
+      <span class="pill" id="radiusText">10 km</span>
+      <span class="muted small right">Gợi ý: tăng bán kính để khoanh vùng rộng hơn</span>
+    </div>
+
+    <div id="map"></div>
+    <div class="sub">Click điểm để xem chi tiết. Vòng tròn = vùng khoanh theo bán kính (mét/km). :contentReference[oaicite:3]{index=3}</div>
+  </div>
+
+  <!-- Tools -->
+  <div class="filters" style="margin-top:14px">
+    <input id="q" placeholder="Search node..." />
+    <select id="riskFilter">
+      <option value="ALL">All risk</option>
+      <option value="LOW">LOW</option>
+      <option value="WATCH">WATCH</option>
+      <option value="WARNING">WARNING</option>
+      <option value="HIGH">HIGH</option>
+    </select>
+
+    <label><input type="checkbox" id="onlyAlert" /> Chỉ xem alert</label>
+
+    <label>Top N
+      <select id="topN">
+        <option>5</option>
+        <option selected>10</option>
+        <option>15</option>
+        <option>20</option>
+      </select>
+    </label>
+
+    <button class="right" id="exportBtn">Export CSV (lọc hiện tại)</button>
+  </div>
+
+  <!-- Table -->
+  <div class="tableWrap">
+    <table>
+      <thead>
+        <tr>
+          <th>node</th>
+          <th>prob%</th>
+          <th>risk</th>
+          <th>alert</th>
+          <th>advice</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="muted small" style="margin-top:10px">
+    Tip: click cột “Risk distribution” để lọc nhanh; bật “Hiện bản đồ” để xem vùng alert.
+  </div>
+</div>
+
+<script>
+let RAW = [];
+let riskChart = null;
+let topChart = null;
+
+// Leaflet map
+let map = null;
+let mapLayer = null;
+
+function nodeIdOnly(nodeName){
+  const s = String(nodeName || "").trim();
+  const m = s.match(/(\d+)\s*$/);
+  if (m) return m[1];
+  const parts = s.split("_");
+  return parts[parts.length-1] || s;
+}
+
+function riskName(riskText){
+  const s = String(riskText || "").trim();
+  const parts = s.split(/\s+/);
+  return parts.length ? parts[parts.length-1] : "";
+}
+
+function riskColor(rn){
+  if (rn === "HIGH") return getComputedStyle(document.documentElement).getPropertyValue("--high").trim();
+  if (rn === "WARNING") return getComputedStyle(document.documentElement).getPropertyValue("--warn").trim();
+  if (rn === "WATCH") return getComputedStyle(document.documentElement).getPropertyValue("--watch").trim();
+  return getComputedStyle(document.documentElement).getPropertyValue("--low").trim();
+}
+
+function probPercentNumber(r){
+  const p = r["prob_%"];
+  if (typeof p === "number") return p;
+  if (typeof p === "string") return Number(String(p).replace("%","")) || 0;
+  return 0;
+}
+
+function isValidLatLon(r){
+  const lat = Number(r.lat), lon = Number(r.lon);
+  return Number.isFinite(lat) && Number.isFinite(lon);
+}
+
+function getFilteredRows(){
+  const q = document.getElementById("q").value.toLowerCase().trim();
+  const rf = document.getElementById("riskFilter").value;
+  const onlyAlert = document.getElementById("onlyAlert").checked;
+
+  let rows = RAW.slice();
+  if (q) rows = rows.filter(r => String(r.node||"").toLowerCase().includes(q));
+  if (rf !== "ALL") rows = rows.filter(r => riskName(r.risk) === rf);
+  if (onlyAlert) rows = rows.filter(r => Number(r.alert_next7) === 1);
+
+  rows.sort((a,b)=>probPercentNumber(b)-probPercentNumber(a));
+  return rows;
+}
+
+function renderTable(){
+  const rows = getFilteredRows();
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+
+  for (const r of rows){
+    const rn = riskName(r.risk);
+    const probN = probPercentNumber(r);
+    const isAlert = Number(r.alert_next7) === 1;
+
+    const tr = document.createElement("tr");
+    if (isAlert) tr.classList.add("alertRow");
+
+    tr.innerHTML = `
+      <td class="mono">${r.node ?? ""}</td>
+      <td><b>${probN.toFixed(2)}%</b></td>
+      <td>
+        <span class="badge ${rn}">
+          <span class="dot"></span>
+          <span>${r.risk ?? ""}</span>
+        </span>
+      </td>
+      <td>${isAlert ? `<span class="alertText">⚠️ 1</span>` : `<span class="muted">0</span>`}</td>
+      <td>${r.advice ?? ""}</td>
+    `;
+    tb.appendChild(tr);
+  }
+}
+
+function updateCards(){
+  document.getElementById("totalNodes").textContent = RAW.length;
+
+  const alerts = RAW.filter(r => Number(r.alert_next7)===1).length;
+  document.getElementById("totalAlerts").textContent = alerts;
+
+  // Max node + lat/lon (theo yêu cầu của bạn)
+  const top = RAW.slice().sort((a,b)=>probPercentNumber(b)-probPercentNumber(a))[0];
+  if (top){
+    const id = nodeIdOnly(top.node);
+    const p = probPercentNumber(top).toFixed(2);
+    document.getElementById("maxNodeLine").textContent = `${id} • ${p}%`;
+
+    const lat = Number(top.lat), lon = Number(top.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)){
+      document.getElementById("maxNodeLatLon").textContent = `lat ${lat.toFixed(4)} , lon ${lon.toFixed(4)}`;
+    } else {
+      document.getElementById("maxNodeLatLon").textContent = `lat/lon: (không có)`;
+    }
+  } else {
+    document.getElementById("maxNodeLine").textContent = "-";
+    document.getElementById("maxNodeLatLon").textContent = "-";
+  }
+
+  const c = {LOW:0, WATCH:0, WARNING:0, HIGH:0};
+  for (const r of RAW){
+    const rn = riskName(r.risk);
+    if (c[rn] !== undefined) c[rn]++;
+  }
+  document.getElementById("riskSum").textContent =
+    `LOW ${c.LOW} | WATCH ${c.WATCH} | WARNING ${c.WARNING} | HIGH ${c.HIGH}`;
+}
+
+function ensureCharts(){
+  if (!riskChart){
+    const ctx = document.getElementById("riskChart").getContext("2d");
+    riskChart = new Chart(ctx, {
+      type: "bar",
+      data: { labels: ["LOW","WATCH","WARNING","HIGH"], datasets: [{ label:"Nodes", data:[0,0,0,0] }] },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const label = riskChart.data.labels[idx];
+          document.getElementById("riskFilter").value = label;
+          renderAll();
+        }
+      }
+    });
+  }
+
+  if (!topChart){
+    const ctx = document.getElementById("topChart").getContext("2d");
+    topChart = new Chart(ctx, {
+      type: "bar",
+      data: { labels: [], datasets: [{ label:"prob%", data:[] }] },
+      options: {
+        indexAxis: "y",
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{ x:{ beginAtZero:true, suggestedMax:100 } }
+      }
+    });
+  }
+}
+
+function updateCharts(){
+  ensureCharts();
+
+  const c = {LOW:0, WATCH:0, WARNING:0, HIGH:0};
+  for (const r of RAW){
+    const rn = riskName(r.risk);
+    if (c[rn] !== undefined) c[rn]++;
+  }
+  const labels = ["LOW","WATCH","WARNING","HIGH"];
+  riskChart.data.labels = labels;
+  riskChart.data.datasets[0].data = labels.map(l => c[l]);
+  riskChart.update(); // :contentReference[oaicite:4]{index=4}
+
+  const topN = Number(document.getElementById("topN").value || 10);
+  const top = RAW.slice().sort((a,b)=>probPercentNumber(b)-probPercentNumber(a)).slice(0, topN);
+  topChart.data.labels = top.map(r => nodeIdOnly(r.node));
+  topChart.data.datasets[0].data = top.map(r => probPercentNumber(r));
+  topChart.update(); // :contentReference[oaicite:5]{index=5}
+}
+
+function initMapIfNeeded(){
+  if (map) return;
+
+  map = L.map("map", { zoomControl: true }).setView([14.5, 108.0], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  mapLayer = L.layerGroup().addTo(map);
+}
+
+function updateMap(){
+  const show = document.getElementById("showMap").checked;
+  const mapDiv = document.getElementById("map");
+  mapDiv.style.display = show ? "block" : "none";
+  if (!show) return;
+
+  initMapIfNeeded();
+
+  const onlyAlertMap = document.getElementById("mapOnlyAlert").checked;
+  const radiusKm = Number(document.getElementById("radiusKm").value || 10);
+  document.getElementById("radiusText").textContent = `${radiusKm} km`;
+
+  const rows = (onlyAlertMap ? RAW.filter(r => Number(r.alert_next7)===1) : getFilteredRows())
+                .filter(isValidLatLon);
+
+  mapLayer.clearLayers();
+
+  const latlngs = [];
+  for (const r of rows){
+    const lat = Number(r.lat), lon = Number(r.lon);
+    const rn = riskName(r.risk);
+    const col = riskColor(rn);
+
+    // Điểm (circleMarker) + setStyle có thể đổi màu fill/viền :contentReference[oaicite:6]{index=6}
+    const marker = L.circleMarker([lat, lon], {
+      radius: 7,
+      color: col,
+      weight: 2,
+      fillColor: col,
+      fillOpacity: 0.9
+    });
+
+    const id = nodeIdOnly(r.node);
+    const p = probPercentNumber(r).toFixed(2);
+    marker.bindPopup(
+      `<b>Node ID:</b> ${id}<br/>` +
+      `<b>Prob:</b> ${p}%<br/>` +
+      `<b>Risk:</b> ${r.risk}<br/>` +
+      `<b>Alert:</b> ${Number(r.alert_next7)===1 ? "⚠️ 1" : "0"}<br/>` +
+      `<b>lat/lon:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}`
+    );
+
+    marker.addTo(mapLayer);
+
+    // Khoanh vùng (circle) radius tính theo meters (km * 1000) :contentReference[oaicite:7]{index=7}
+    L.circle([lat, lon], {
+      radius: radiusKm * 1000,
+      color: col,
+      weight: 1,
+      fillColor: col,
+      fillOpacity: 0.12
+    }).addTo(mapLayer);
+
+    latlngs.push([lat, lon]);
+  }
+
+  if (latlngs.length){
+    map.fitBounds(latlngs, { padding: [20, 20] }); // fitBounds trong Leaflet :contentReference[oaicite:8]{index=8}
+  }
+}
+
+function renderAll(){
+  updateCards();
+  updateCharts();
+  renderTable();
+  updateMap();
+}
+
+function exportCSV(){
+  const rows = getFilteredRows();
+  if (!rows.length) return;
+
+  const cols = ["node","prob_%","risk","alert_next7","advice","lat","lon"];
+  const lines = [
+    cols.join(","),
+    ...rows.map(r => cols.map(c => {
+      const v = (r[c] ?? "");
+      const s = String(v).replaceAll('"','""');
+      return `"${s}"`;
+    }).join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "fire_risk_filtered.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function loadLatest(){
+  const res = await fetch("/api/latest");
+  const data = await res.json();
+
+  RAW = data.rows || [];
+  const m = data.meta || {};
+
+  document.getElementById("metaLine").textContent =
+    `BASE ${m.base_day||"-"} | FORECAST ${m.forecast_from||"-"} → ${m.forecast_to||"-"} | TH ${m.th_alert ?? "-"}`;
+  document.getElementById("tsLine").textContent = `Updated: ${data.ts || "N/A"}`;
+
+  renderAll();
+}
+
+document.getElementById("q").addEventListener("input", renderAll);
+document.getElementById("riskFilter").addEventListener("change", renderAll);
+document.getElementById("onlyAlert").addEventListener("change", renderAll);
+document.getElementById("topN").addEventListener("change", () => { updateCharts(); });
+document.getElementById("exportBtn").addEventListener("click", exportCSV);
+
+document.getElementById("showMap").addEventListener("change", updateMap);
+document.getElementById("mapOnlyAlert").addEventListener("change", updateMap);
+document.getElementById("radiusKm").addEventListener("input", updateMap);
+
+document.getElementById("runBtn").onclick = async () => {
+  const btn = document.getElementById("runBtn");
+  btn.disabled = true; btn.textContent = "Running...";
+  await fetch("/api/run", {method:"POST"});
+  await loadLatest();
+  btn.disabled = false; btn.textContent = "Run now";
+};
+
+loadLatest();
+setInterval(loadLatest, 3600000);
+</script>
+
+</body>
+</html>
