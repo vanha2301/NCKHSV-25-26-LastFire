@@ -30,5 +30,4 @@ async def run_now():
     CACHE["rows"] = df_to_rows(df)
     return JSONResponse({"ok": True, "ts": CACHE["ts"], "count": len(CACHE["rows"])})
 
-# ✅ đặt mount xuống cuối
 app.mount("/", StaticFiles(directory="web", html=True), name="web")

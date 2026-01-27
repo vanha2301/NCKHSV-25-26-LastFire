@@ -114,8 +114,8 @@
 <div class="wrap">
 
   <div class="top">
-    <h1>🔥 Last Fire -  Dự đoán cháy 7 ngày tới</h1>
-    <span class="pill" id="metaLine">BASE - | - → - | TH -</span>
+    <h1>🔥 Last Fire | TIME-GNN dự đoán báo cháy 7 ngày</h1>
+    <span class="pill" id="metaLine">BASE - | - → - | TH_ALERT -</span>
     <span class="pill" id="tsLine">Updated: -</span>
     <div class="spacer"></div>
     <button id="runBtn">Run now</button>
@@ -125,12 +125,12 @@
     <div class="card">
       <div class="k">Total nodes</div>
       <div class="v" id="totalNodes">-</div>
-      <div class="sub">Số node trong nodes.npy</div>
+      <div class="sub"></div>
     </div>
     <div class="card">
       <div class="k">Alerts</div>
       <div class="v" id="totalAlerts">-</div>
-      <div class="sub">prob ≥ TH_ALERT</div>
+      <div class="sub">prob ≥ TH_ALERT = 53%</div>
     </div>
     <div class="card">
       <div class="k">Max node (ID + prob%)</div>
@@ -154,7 +154,7 @@
     <div class="card">
       <div class="k">Top nodes by prob% (7 ngày tới)</div>
       <div class="chartBox"><canvas id="topChart"></canvas></div>
-      <div class="sub">Thanh ngang: node có prob cao nhất</div>
+      <div class="sub"></div>
     </div>
   </div>
 
@@ -173,7 +173,7 @@
     </div>
 
     <div id="map"></div>
-    <div class="sub">Click điểm để xem chi tiết. Vòng tròn = vùng khoanh theo bán kính (mét/km). :contentReference[oaicite:3]{index=3}</div>
+    <div class="sub">Click điểm để xem chi tiết. Vòng tròn = vùng khoanh theo bán kính (mét/km)</div>
   </div>
 
   <!-- Tools -->
@@ -313,7 +313,6 @@ function updateCards(){
   const alerts = RAW.filter(r => Number(r.alert_next7)===1).length;
   document.getElementById("totalAlerts").textContent = alerts;
 
-  // Max node + lat/lon (theo yêu cầu của bạn)
   const top = RAW.slice().sort((a,b)=>probPercentNumber(b)-probPercentNumber(a))[0];
   if (top){
     const id = nodeIdOnly(top.node);
@@ -431,7 +430,7 @@ function updateMap(){
     const rn = riskName(r.risk);
     const col = riskColor(rn);
 
-    // Điểm (circleMarker) + setStyle có thể đổi màu fill/viền :contentReference[oaicite:6]{index=6}
+    // Điểm (circleMarker) + setStyle có thể đổi màu fill/viền 
     const marker = L.circleMarker([lat, lon], {
       radius: 7,
       color: col,
@@ -452,7 +451,7 @@ function updateMap(){
 
     marker.addTo(mapLayer);
 
-    // Khoanh vùng (circle) radius tính theo meters (km * 1000) :contentReference[oaicite:7]{index=7}
+    // Khoanh vùng (circle) radius tính theo meters (km * 1000) 
     L.circle([lat, lon], {
       radius: radiusKm * 1000,
       color: col,
@@ -465,7 +464,7 @@ function updateMap(){
   }
 
   if (latlngs.length){
-    map.fitBounds(latlngs, { padding: [20, 20] }); // fitBounds trong Leaflet :contentReference[oaicite:8]{index=8}
+    map.fitBounds(latlngs, { padding: [20, 20] }); // fitBounds trong Leaflet
   }
 }
 

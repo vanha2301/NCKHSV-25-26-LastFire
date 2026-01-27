@@ -44,7 +44,8 @@ def get_base_day_vn() -> pd.Timestamp:
     base = now_vn.floor("D").tz_localize(None)  # bỏ timezone để khớp với df date naive
     return base
 
-BASE_DAY = get_base_day_vn()
+# BASE_DAY = get_base_day_vn()
+BASE_DAY = pd.Timestamp("2025-09-30")  # chỉnh thủ công cho mục đích test
 HISTORY_DAYS = 30                      # L (giống train)
 TH_ALERT = 0.53                        # ngưỡng bật cảnh báo
 

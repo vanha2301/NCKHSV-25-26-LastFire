@@ -11,8 +11,7 @@ START = "2026-01-01"
 END   = "2026-01-31"
 
 NODES_CSV = "nodes.csv"  # bạn tạo file này
-OUT_PATH = Path("weather_dec2025_all_nodes.csv")
-
+OUT_PATH = Path("weather_dec2026_all_nodes.csv")
 params = {
     "include": "days",
     "unitGroup": "metric",
