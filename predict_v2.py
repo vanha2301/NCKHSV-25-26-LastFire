@@ -9,14 +9,13 @@ VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 # ======================
 # CONFIG
 # ======================
-CSV_PATH   = r"D:\NCKHSV-25-26-LastFire\weather_all_nodes.csv"
-MODEL_PATH = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\best_timegnn.pt"
-A_PATH     = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\A_norm.npy"
-MU_PATH    = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\mu.npy"
-SD_PATH    = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\sd.npy"
-NODES_PATH = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\nodes.npy"
-FEATS_PATH = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\feature_cols.npy"
-
+CSV_PATH   = "WeatherPredict/weather_all_nodes.csv"
+MODEL_PATH = "LastFile_1.0/best_timegnn.pt"
+A_PATH     = "LastFile_1.0/A_norm.npy"
+MU_PATH    = "LastFile_1.0/mu.npy"
+SD_PATH    = "LastFile_1.0/sd.npy"
+NODES_PATH = "LastFile_1.0/nodes.npy"
+FEATS_PATH = "LastFile_1.0/feature_cols.npy"
 def get_base_day_vn() -> pd.Timestamp:
     """
     BASE_DAY = ngày hiện tại theo giờ VN, làm tròn về 00:00 (date floor).
