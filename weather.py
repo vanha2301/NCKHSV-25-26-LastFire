@@ -6,8 +6,8 @@ from pathlib import Path
 # ======================
 # CONFIG
 # ======================
-API_KEY = os.getenv("VC_API_KEY", "TF8TBMK2KW897QEB8YTPN6HS6")
-START = "2026-01-01"
+API_KEY = os.getenv("VC_API_KEY", "Y4NHLNSCH7YTG8ZMDRWAVGJFF")
+START = "2025-09-01"
 END   = "2026-01-31"
 
 NODES_CSV = "nodes.csv"  # bạn tạo file này

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 import asyncio
 
-from predict import run_prediction
+from predict_v2 import run_prediction
 
 app = FastAPI()
 

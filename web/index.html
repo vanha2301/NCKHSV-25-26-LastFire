@@ -98,7 +98,7 @@
     .LOW .dot{background:var(--low)}
     .WATCH .dot{background:var(--watch)}
     .WARNING .dot{background:var(--warn)}
-    .HIGH .dot{background:var(--high)}
+    .HIGH .dot{background:#ef4444}
 
     .alertRow td{background: rgba(239,68,68,.08)}
     .alertText{color:#fecaca; font-weight:900}
@@ -107,6 +107,7 @@
     .small{font-size:12px}
     .chartBox{height:320px}
     #map{height:420px; border-radius:12px; overflow:hidden; border:1px solid var(--line); display:none; margin-top:12px}
+    #maxNodeLine{color:#ef4444}
   </style>
 </head>
 
@@ -114,7 +115,7 @@
 <div class="wrap">
 
   <div class="top">
-    <h1>🔥 Last Fire | TIME-GNN dự đoán báo cháy 7 ngày</h1>
+    <h1>🔥 Last Fire | TIME-GNN fire alarm prediction 7 days</h1>
     <span class="pill" id="metaLine">BASE - | - → - | TH_ALERT -</span>
     <span class="pill" id="tsLine">Updated: -</span>
     <div class="spacer"></div>
@@ -147,12 +148,12 @@
   <!-- Charts -->
   <div class="grid2">
     <div class="card">
-      <div class="k">Risk distribution (click để lọc)</div>
+      <div class="k">Risk distribution (select to filter)</div>
       <div class="chartBox"><canvas id="riskChart"></canvas></div>
-      <div class="sub">Biểu đồ cột: số node theo mức risk</div>
+      <div class="sub">Distribution of nodes by fire risk level</div>
     </div>
     <div class="card">
-      <div class="k">Top nodes by prob% (7 ngày tới)</div>
+      <div class="k">Top nodes by prob% (next 7 days)</div>
       <div class="chartBox"><canvas id="topChart"></canvas></div>
       <div class="sub"></div>
     </div>
@@ -160,20 +161,20 @@
 
   <!-- Map Card -->
   <div class="card">
-    <div class="k">Bản đồ cảnh báo (đánh dấu + khoanh vùng)</div>
+    <div class="k">Fire Alert Map (Markers and Circular Risk Areas)</div>
 
     <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:10px">
-      <label><input type="checkbox" id="showMap"> Hiện bản đồ</label>
-      <label><input type="checkbox" id="mapOnlyAlert" checked> Chỉ vẽ node alert</label>
-      <label>Bán kính khoanh vùng (km):
+      <label><input type="checkbox" id="showMap"> show Map</label>
+      <label><input type="checkbox" id="mapOnlyAlert" checked> only draw node alert</label>
+      <label>Radius of the area (km):
         <input type="range" id="radiusKm" min="1" max="50" value="10">
       </label>
       <span class="pill" id="radiusText">10 km</span>
-      <span class="muted small right">Gợi ý: tăng bán kính để khoanh vùng rộng hơn</span>
+      <span class="muted small right">Suggestion: Increase the radius to create a wider area.</span>
     </div>
 
     <div id="map"></div>
-    <div class="sub">Click điểm để xem chi tiết. Vòng tròn = vùng khoanh theo bán kính (mét/km)</div>
+    <div class="sub">select Points to view details. Circle = area circled according to radius. (m/km)</div>
   </div>
 
   <!-- Tools -->
@@ -187,7 +188,7 @@
       <option value="HIGH">HIGH</option>
     </select>
 
-    <label><input type="checkbox" id="onlyAlert" /> Chỉ xem alert</label>
+    <label><input type="checkbox" id="onlyAlert" /> Only show alert</label>
 
     <label>Top N
       <select id="topN">
@@ -198,7 +199,7 @@
       </select>
     </label>
 
-    <button class="right" id="exportBtn">Export CSV (lọc hiện tại)</button>
+    <button class="right" id="exportBtn">Export CSV (filter now)</button>
   </div>
 
   <!-- Table -->
@@ -218,7 +219,7 @@
   </div>
 
   <div class="muted small" style="margin-top:10px">
-    Tip: click cột “Risk distribution” để lọc nhanh; bật “Hiện bản đồ” để xem vùng alert.
+    Tip: click row “Risk distribution” to fast filter; turn on “show map” to show area alert.
   </div>
 </div>
 
@@ -441,24 +442,38 @@ function updateMap(){
 
     const id = nodeIdOnly(r.node);
     const p = probPercentNumber(r).toFixed(2);
-    marker.bindPopup(
+    const popupHtml =
       `<b>Node ID:</b> ${id}<br/>` +
       `<b>Prob:</b> ${p}%<br/>` +
       `<b>Risk:</b> ${r.risk}<br/>` +
       `<b>Alert:</b> ${Number(r.alert_next7)===1 ? "⚠️ 1" : "0"}<br/>` +
-      `<b>lat/lon:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}`
-    );
+      `<b>lat/lon:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
-    marker.addTo(mapLayer);
+    marker.bindPopup(popupHtml);
 
-    // Khoanh vùng (circle) radius tính theo meters (km * 1000) 
-    L.circle([lat, lon], {
+    // Khoanh vùng (circle)
+    const area = L.circle([lat, lon], {
       radius: radiusKm * 1000,
       color: col,
       weight: 1,
       fillColor: col,
       fillOpacity: 0.12
     }).addTo(mapLayer);
+
+    // click vào vòng tròn cũng hiện popup
+    area.bindPopup(popupHtml);
+
+
+    marker.addTo(mapLayer);
+
+    // Khoanh vùng (circle) radius tính theo meters (km * 1000) 
+    // L.circle([lat, lon], {
+    //   radius: radiusKm * 1000,
+    //   color: col,
+    //   weight: 1,
+    //   fillColor: col,
+    //   fillOpacity: 0.12
+    // }).addTo(mapLayer);
 
     latlngs.push([lat, lon]);
   }
