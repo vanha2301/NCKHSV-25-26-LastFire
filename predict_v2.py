@@ -1,4 +1,4 @@
-# predict.py
+# predict_v2.py
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 # ======================
 # CONFIG
 # ======================
-CSV_PATH   = r"D:\NCKHSV-25-26-LastFire\weather_dec2025_all_nodes.csv"
+CSV_PATH   = r"D:\NCKHSV-25-26-LastFire\weather_all_nodes.csv"
 MODEL_PATH = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\best_timegnn.pt"
 A_PATH     = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\A_norm.npy"
 MU_PATH    = r"D:\NCKHSV-25-26-LastFire\LastFile_1.0\mu.npy"
