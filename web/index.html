@@ -1,552 +1,649 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>🔥 Fire Risk Dashboard</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Last Fire — AI-powered 7-day forest fire risk prediction dashboard using Time-GCN + GRU model." />
+
+  <title>🔥 Last Fire | Fire Risk Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Leaflet (CDN) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- Leaflet -->
+  <link  rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    :root{
-      --bg:#0b0f19; --text:#e5e7eb; --muted:#94a3b8; --line: rgba(255,255,255,.08);
-      --shadow: 0 10px 30px rgba(0,0,0,.35); --radius: 16px;
-      --low:#22c55e; --watch:#eab308; --warn:#fb923c; --high:#ef4444;
+    /* ── Design tokens ───────────────────────────────────────────────────── */
+    :root {
+      --bg:       #080c14;
+      --surface:  #0f1624;
+      --border:   rgba(255, 255, 255, .08);
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --shadow:   0 8px 32px rgba(0, 0, 0, .45);
+      --radius:   14px;
+
+      --low:     #22c55e;
+      --watch:   #eab308;
+      --warn:    #f97316;
+      --high:    #ef4444;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0; font-family: Inter, Arial, sans-serif;
+
+    /* ── Reset ───────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", Arial, sans-serif;
       background:
-        radial-gradient(900px 500px at 20% -10%, rgba(59,130,246,.25), transparent),
-        radial-gradient(900px 500px at 90% 0%, rgba(239,68,68,.18), transparent),
+        radial-gradient(ellipse 900px 500px at 15% -5%,  rgba(59, 130, 246, .22), transparent),
+        radial-gradient(ellipse 800px 400px at 90%   5%,  rgba(239, 68, 68,  .16), transparent),
         var(--bg);
-      color:var(--text);
+      color: var(--text);
+      min-height: 100vh;
     }
-    .wrap{max-width:1180px; margin:0 auto; padding:22px}
-    .top{
-      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-      padding:16px 18px; border:1px solid var(--line); border-radius: var(--radius);
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+    /* ── Glass card ─────────────────────────────────────────────────────── */
+    .card {
+      background: linear-gradient(160deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(4px);
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 18px;
+    }
+    .topbar h1 { font-size: 17px; font-weight: 900; letter-spacing: -.3px; }
+
+    .pill {
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .spacer { flex: 1; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    button {
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, .07);
+      color: var(--text);
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover    { background: rgba(255, 255, 255, .12); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Stat cards ──────────────────────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    @media (max-width: 800px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card { padding: 16px 18px; }
+    .stat-key  { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-val  { font-size: 26px; font-weight: 900; margin-top: 8px; line-height: 1; }
+    .stat-sub  { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
+    #stat-max  { color: var(--high); }
+
+    /* ── Chart grid ──────────────────────────────────────────────────────── */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 0 0 12px;
+    }
+    @media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+
+    .chart-card { padding: 16px; }
+    .chart-label { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+    .chart-box  { height: 300px; }
+
+    /* ── Map ─────────────────────────────────────────────────────────────── */
+    .map-card { padding: 16px; margin-bottom: 12px; }
+    .map-controls {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    #map {
+      height: 420px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: none;
+    }
+    .map-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+    /* ── Filter bar ──────────────────────────────────────────────────────── */
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"], select {
+      padding: 9px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: rgba(15, 22, 36, .8);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input[type="text"]:focus, select:focus { border-color: rgba(99, 102, 241, .6); }
+
+    label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 7px; }
+    input[type="range"] { accent-color: #6366f1; }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .015);
+      overflow: auto;
+      max-height: 60vh;
       box-shadow: var(--shadow);
     }
-    h1{margin:0; font-size:18px}
-    .pill{padding:6px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:12px}
-    .spacer{flex:1}
-    button{
-      padding:10px 14px; border-radius:12px; border:1px solid var(--line);
-      background: rgba(255,255,255,.06); color:var(--text); cursor:pointer; font-weight:700;
-    }
-    button:hover{background: rgba(255,255,255,.10)}
-    button:disabled{opacity:.6; cursor:not-allowed}
 
-    .cards{display:grid; grid-template-columns: repeat(4, minmax(160px,1fr)); gap:12px; margin:14px 0}
-    .card{
-      border:1px solid var(--line); border-radius: var(--radius); padding:14px;
-      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      box-shadow: var(--shadow);
-      min-height:92px;
-    }
-    .k{color:var(--muted); font-size:12px}
-    .v{font-size:22px; font-weight:900; margin-top:8px}
-    .sub{color:var(--muted); font-size:12px; margin-top:6px; line-height:1.4}
+    table { border-collapse: collapse; width: 100%; }
 
-    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin:14px 0}
-    @media (max-width: 980px){ .grid2{grid-template-columns:1fr} }
-
-    .filters{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      border:1px solid var(--line); border-radius: var(--radius); padding:12px 14px;
-      background: rgba(255,255,255,.03);
-      box-shadow: var(--shadow);
+    th, td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-align: left;
+      white-space: nowrap;
     }
-    input, select{
-      padding:10px 12px; border-radius:12px; border:1px solid var(--line);
-      background: rgba(17,24,39,.6); color:var(--text); outline:none;
-    }
-    label{color:var(--muted); font-size:13px; display:flex; align-items:center; gap:8px}
-    input[type="range"]{accent-color: #9ca3af}
-
-    .tableWrap{
-      margin-top:12px;
-      border:1px solid var(--line); border-radius: var(--radius);
-      background: rgba(255,255,255,.02);
-      overflow:auto; max-height:62vh;
-      box-shadow: var(--shadow);
-    }
-    table{border-collapse:collapse; width:100%}
-    th, td{padding:12px 12px; border-bottom:1px solid var(--line); font-size:13px; text-align:left; white-space:nowrap}
-    th{
-      position:sticky; top:0; z-index:2;
-      background: rgba(15,23,42,.95);
-      color: var(--muted); font-weight:800;
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: rgba(8, 12, 20, .96);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
       backdrop-filter: blur(8px);
     }
-    tr:hover td{background: rgba(255,255,255,.03)}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    tr:hover td { background: rgba(255, 255, 255, .025); }
+    .mono { font-family: "JetBrains Mono", monospace; }
 
-    .badge{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:6px 10px; border-radius:999px; border:1px solid var(--line);
-      font-weight:800;
+    /* ── Risk badge ──────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 12px;
     }
-    .dot{width:10px; height:10px; border-radius:50%}
-    .LOW .dot{background:var(--low)}
-    .WATCH .dot{background:var(--watch)}
-    .WARNING .dot{background:var(--warn)}
-    .HIGH .dot{background:#ef4444}
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .LOW     .dot { background: var(--low);   }
+    .WATCH   .dot { background: var(--watch); }
+    .WARNING .dot { background: var(--warn);  }
+    .HIGH    .dot { background: var(--high);  }
 
-    .alertRow td{background: rgba(239,68,68,.08)}
-    .alertText{color:#fecaca; font-weight:900}
-    .muted{color:var(--muted)}
-    .right{margin-left:auto}
-    .small{font-size:12px}
-    .chartBox{height:320px}
-    #map{height:420px; border-radius:12px; overflow:hidden; border:1px solid var(--line); display:none; margin-top:12px}
-    #maxNodeLine{color:#ef4444}
+    .alert-row td   { background: rgba(239, 68, 68, .07); }
+    .alert-text     { color: #fca5a5; font-weight: 900; }
+    .text-muted     { color: var(--muted); }
+    .footer-tip     { color: var(--muted); font-size: 12px; margin-top: 12px; padding: 0 4px; }
   </style>
 </head>
 
 <body>
 <div class="wrap">
 
-  <div class="top">
-    <h1>🔥 Last Fire | TIME-GNN fire alarm prediction 7 days</h1>
-    <span class="pill" id="metaLine">BASE - | - → - | TH_ALERT -</span>
-    <span class="pill" id="tsLine">Updated: -</span>
+  <!-- ── Top bar ────────────────────────────────────────────────────── -->
+  <div class="card topbar" style="margin-bottom:16px">
+    <h1>🔥 Last Fire &mdash; TIME-GNN Fire Risk Prediction (Next 7 Days)</h1>
+    <span class="pill" id="meta-line">BASE - | - → - | TH -</span>
+    <span class="pill" id="ts-line">Updated: —</span>
     <div class="spacer"></div>
-    <button id="runBtn">Run now</button>
+    <button id="run-btn">Run now</button>
   </div>
 
+  <!-- ── Stat cards ─────────────────────────────────────────────────── -->
   <div class="cards">
-    <div class="card">
-      <div class="k">Total nodes</div>
-      <div class="v" id="totalNodes">-</div>
-      <div class="sub"></div>
+    <div class="card stat-card">
+      <div class="stat-key">Total nodes</div>
+      <div class="stat-val" id="stat-total">—</div>
+      <div class="stat-sub">Monitoring points</div>
     </div>
-    <div class="card">
-      <div class="k">Alerts</div>
-      <div class="v" id="totalAlerts">-</div>
-      <div class="sub">prob ≥ TH_ALERT = 53%</div>
+    <div class="card stat-card">
+      <div class="stat-key">Alerts</div>
+      <div class="stat-val" id="stat-alerts">—</div>
+      <div class="stat-sub">prob ≥ TH_ALERT = 53 %</div>
     </div>
-    <div class="card">
-      <div class="k">Max node (ID + prob%)</div>
-      <div class="v" id="maxNodeLine">-</div>
-      <div class="sub" id="maxNodeLatLon">-</div>
+    <div class="card stat-card">
+      <div class="stat-key">Highest risk node</div>
+      <div class="stat-val" id="stat-max">—</div>
+      <div class="stat-sub" id="stat-max-latlon">—</div>
     </div>
-    <div class="card">
-      <div class="k">Risk summary</div>
-      <div class="v small" id="riskSum">-</div>
-      <div class="sub">LOW / WATCH / WARNING / HIGH</div>
-    </div>
-  </div>
-
-  <!-- Charts -->
-  <div class="grid2">
-    <div class="card">
-      <div class="k">Risk distribution (select to filter)</div>
-      <div class="chartBox"><canvas id="riskChart"></canvas></div>
-      <div class="sub">Distribution of nodes by fire risk level</div>
-    </div>
-    <div class="card">
-      <div class="k">Top nodes by prob% (next 7 days)</div>
-      <div class="chartBox"><canvas id="topChart"></canvas></div>
-      <div class="sub"></div>
+    <div class="card stat-card">
+      <div class="stat-key">Risk summary</div>
+      <div class="stat-val" style="font-size:17px" id="stat-risk-sum">—</div>
+      <div class="stat-sub">LOW / WATCH / WARNING / HIGH</div>
     </div>
   </div>
 
-  <!-- Map Card -->
-  <div class="card">
-    <div class="k">Fire Alert Map (Markers and Circular Risk Areas)</div>
+  <!-- ── Charts ─────────────────────────────────────────────────────── -->
+  <div class="chart-grid">
+    <div class="card chart-card">
+      <div class="chart-label">Risk distribution — click a bar to filter</div>
+      <div class="chart-box"><canvas id="risk-chart"></canvas></div>
+    </div>
+    <div class="card chart-card">
+      <div class="chart-label">Top nodes by fire probability (next 7 days)</div>
+      <div class="chart-box"><canvas id="top-chart"></canvas></div>
+    </div>
+  </div>
 
-    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-top:10px">
-      <label><input type="checkbox" id="showMap"> show Map</label>
-      <label><input type="checkbox" id="mapOnlyAlert" checked> only draw node alert</label>
-      <label>Radius of the area (km):
-        <input type="range" id="radiusKm" min="1" max="50" value="10">
+  <!-- ── Map ────────────────────────────────────────────────────────── -->
+  <div class="card map-card">
+    <div class="chart-label">Fire Alert Map</div>
+    <div class="map-controls">
+      <label><input type="checkbox" id="show-map" /> Show map</label>
+      <label><input type="checkbox" id="map-only-alert" checked /> Alert nodes only</label>
+      <label>
+        Radius (km):
+        <input type="range" id="radius-km" min="1" max="50" value="10" />
       </label>
-      <span class="pill" id="radiusText">10 km</span>
-      <span class="muted small right">Suggestion: Increase the radius to create a wider area.</span>
+      <span class="pill" id="radius-text">10 km</span>
     </div>
-
     <div id="map"></div>
-    <div class="sub">select Points to view details. Circle = area circled according to radius. (m/km)</div>
+    <div class="map-hint">Click a marker or circle to see details. Circle radius is configurable above.</div>
   </div>
 
-  <!-- Tools -->
-  <div class="filters" style="margin-top:14px">
-    <input id="q" placeholder="Search node..." />
-    <select id="riskFilter">
-      <option value="ALL">All risk</option>
+  <!-- ── Filter bar ─────────────────────────────────────────────────── -->
+  <div class="card filters">
+    <input type="text" id="search" placeholder="Search node…" />
+    <select id="risk-filter">
+      <option value="ALL">All risk levels</option>
       <option value="LOW">LOW</option>
       <option value="WATCH">WATCH</option>
       <option value="WARNING">WARNING</option>
       <option value="HIGH">HIGH</option>
     </select>
-
-    <label><input type="checkbox" id="onlyAlert" /> Only show alert</label>
-
-    <label>Top N
-      <select id="topN">
+    <label><input type="checkbox" id="only-alert" /> Alerts only</label>
+    <label>
+      Top N
+      <select id="top-n">
         <option>5</option>
         <option selected>10</option>
         <option>15</option>
         <option>20</option>
       </select>
     </label>
-
-    <button class="right" id="exportBtn">Export CSV (filter now)</button>
+    <button class="spacer" style="max-width:180px" id="export-btn">Export CSV (current filter)</button>
   </div>
 
-  <!-- Table -->
-  <div class="tableWrap">
+  <!-- ── Data table ─────────────────────────────────────────────────── -->
+  <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>node</th>
-          <th>prob%</th>
-          <th>risk</th>
-          <th>alert</th>
-          <th>advice</th>
+          <th>Node</th>
+          <th>Prob %</th>
+          <th>Risk</th>
+          <th>Alert</th>
+          <th>Advice</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
 
-  <div class="muted small" style="margin-top:10px">
-    Tip: click row “Risk distribution” to fast filter; turn on “show map” to show area alert.
-  </div>
-</div>
+  <p class="footer-tip">
+    💡 Click a bar in "Risk distribution" to filter the table &nbsp;|&nbsp;
+    Enable "Show map" to visualise alert zones.
+  </p>
+
+</div><!-- .wrap -->
 
 <script>
-let RAW = [];
+/* ── State ──────────────────────────────────────────────────────────────── */
+let RAW       = [];
 let riskChart = null;
-let topChart = null;
+let topChart  = null;
+let map       = null;
+let mapLayer  = null;
 
-// Leaflet map
-let map = null;
-let mapLayer = null;
-
-function nodeIdOnly(nodeName){
-  const s = String(nodeName || "").trim();
+/* ── Helpers ────────────────────────────────────────────────────────────── */
+function nodeIdOnly(name) {
+  const s = String(name || "").trim();
   const m = s.match(/(\d+)\s*$/);
   if (m) return m[1];
   const parts = s.split("_");
-  return parts[parts.length-1] || s;
+  return parts[parts.length - 1] || s;
 }
 
-function riskName(riskText){
-  const s = String(riskText || "").trim();
-  const parts = s.split(/\s+/);
-  return parts.length ? parts[parts.length-1] : "";
+function riskName(riskText) {
+  const parts = String(riskText || "").trim().split(/\s+/);
+  return parts[parts.length - 1] || "";
 }
 
-function riskColor(rn){
-  if (rn === "HIGH") return getComputedStyle(document.documentElement).getPropertyValue("--high").trim();
-  if (rn === "WARNING") return getComputedStyle(document.documentElement).getPropertyValue("--warn").trim();
-  if (rn === "WATCH") return getComputedStyle(document.documentElement).getPropertyValue("--watch").trim();
-  return getComputedStyle(document.documentElement).getPropertyValue("--low").trim();
+function riskColor(rn) {
+  const style = getComputedStyle(document.documentElement);
+  const map = { HIGH: "--high", WARNING: "--warn", WATCH: "--watch", LOW: "--low" };
+  return style.getPropertyValue(map[rn] || "--low").trim();
 }
 
-function probPercentNumber(r){
-  const p = r["prob_%"];
+function probNum(row) {
+  const p = row["prob_%"];
   if (typeof p === "number") return p;
-  if (typeof p === "string") return Number(String(p).replace("%","")) || 0;
-  return 0;
+  return Number(String(p || "0").replace("%", "")) || 0;
 }
 
-function isValidLatLon(r){
-  const lat = Number(r.lat), lon = Number(r.lon);
-  return Number.isFinite(lat) && Number.isFinite(lon);
+function hasLatLon(row) {
+  return Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lon));
 }
 
-function getFilteredRows(){
-  const q = document.getElementById("q").value.toLowerCase().trim();
-  const rf = document.getElementById("riskFilter").value;
-  const onlyAlert = document.getElementById("onlyAlert").checked;
+/* ── Filtering ──────────────────────────────────────────────────────────── */
+function getFilteredRows() {
+  const q         = document.getElementById("search").value.toLowerCase().trim();
+  const rf        = document.getElementById("risk-filter").value;
+  const onlyAlert = document.getElementById("only-alert").checked;
 
   let rows = RAW.slice();
-  if (q) rows = rows.filter(r => String(r.node||"").toLowerCase().includes(q));
+  if (q)         rows = rows.filter(r => String(r.node || "").toLowerCase().includes(q));
   if (rf !== "ALL") rows = rows.filter(r => riskName(r.risk) === rf);
   if (onlyAlert) rows = rows.filter(r => Number(r.alert_next7) === 1);
 
-  rows.sort((a,b)=>probPercentNumber(b)-probPercentNumber(a));
-  return rows;
+  return rows.sort((a, b) => probNum(b) - probNum(a));
 }
 
-function renderTable(){
+/* ── Table ──────────────────────────────────────────────────────────────── */
+function renderTable() {
   const rows = getFilteredRows();
-  const tb = document.getElementById("tbody");
-  tb.innerHTML = "";
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
 
-  for (const r of rows){
-    const rn = riskName(r.risk);
-    const probN = probPercentNumber(r);
+  for (const r of rows) {
+    const rn      = riskName(r.risk);
+    const pct     = probNum(r).toFixed(2);
     const isAlert = Number(r.alert_next7) === 1;
 
     const tr = document.createElement("tr");
-    if (isAlert) tr.classList.add("alertRow");
+    if (isAlert) tr.classList.add("alert-row");
 
     tr.innerHTML = `
       <td class="mono">${r.node ?? ""}</td>
-      <td><b>${probN.toFixed(2)}%</b></td>
+      <td><b>${pct}%</b></td>
       <td>
         <span class="badge ${rn}">
           <span class="dot"></span>
           <span>${r.risk ?? ""}</span>
         </span>
       </td>
-      <td>${isAlert ? `<span class="alertText">⚠️ 1</span>` : `<span class="muted">0</span>`}</td>
+      <td>${isAlert ? '<span class="alert-text">⚠️ 1</span>' : '<span class="text-muted">0</span>'}</td>
       <td>${r.advice ?? ""}</td>
     `;
-    tb.appendChild(tr);
+    tbody.appendChild(tr);
   }
 }
 
-function updateCards(){
-  document.getElementById("totalNodes").textContent = RAW.length;
+/* ── Stat cards ─────────────────────────────────────────────────────────── */
+function updateStats() {
+  document.getElementById("stat-total").textContent  = RAW.length;
+  document.getElementById("stat-alerts").textContent = RAW.filter(r => Number(r.alert_next7) === 1).length;
 
-  const alerts = RAW.filter(r => Number(r.alert_next7)===1).length;
-  document.getElementById("totalAlerts").textContent = alerts;
-
-  const top = RAW.slice().sort((a,b)=>probPercentNumber(b)-probPercentNumber(a))[0];
-  if (top){
-    const id = nodeIdOnly(top.node);
-    const p = probPercentNumber(top).toFixed(2);
-    document.getElementById("maxNodeLine").textContent = `${id} • ${p}%`;
-
+  const top = RAW.slice().sort((a, b) => probNum(b) - probNum(a))[0];
+  if (top) {
+    document.getElementById("stat-max").textContent = `${nodeIdOnly(top.node)} · ${probNum(top).toFixed(2)}%`;
     const lat = Number(top.lat), lon = Number(top.lon);
-    if (Number.isFinite(lat) && Number.isFinite(lon)){
-      document.getElementById("maxNodeLatLon").textContent = `lat ${lat.toFixed(4)} , lon ${lon.toFixed(4)}`;
-    } else {
-      document.getElementById("maxNodeLatLon").textContent = `lat/lon: (không có)`;
-    }
-  } else {
-    document.getElementById("maxNodeLine").textContent = "-";
-    document.getElementById("maxNodeLatLon").textContent = "-";
+    document.getElementById("stat-max-latlon").textContent =
+      Number.isFinite(lat) && Number.isFinite(lon)
+        ? `lat ${lat.toFixed(4)}, lon ${lon.toFixed(4)}`
+        : "lat/lon not available";
   }
 
-  const c = {LOW:0, WATCH:0, WARNING:0, HIGH:0};
-  for (const r of RAW){
+  const counts = { LOW: 0, WATCH: 0, WARNING: 0, HIGH: 0 };
+  for (const r of RAW) {
     const rn = riskName(r.risk);
-    if (c[rn] !== undefined) c[rn]++;
+    if (rn in counts) counts[rn]++;
   }
-  document.getElementById("riskSum").textContent =
-    `LOW ${c.LOW} | WATCH ${c.WATCH} | WARNING ${c.WARNING} | HIGH ${c.HIGH}`;
+  document.getElementById("stat-risk-sum").textContent =
+    `${counts.LOW} / ${counts.WATCH} / ${counts.WARNING} / ${counts.HIGH}`;
 }
 
-function ensureCharts(){
-  if (!riskChart){
-    const ctx = document.getElementById("riskChart").getContext("2d");
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+const CHART_COLORS = ["#22c55e", "#eab308", "#f97316", "#ef4444"];
+const RISK_LABELS  = ["LOW", "WATCH", "WARNING", "HIGH"];
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+};
+
+function initCharts() {
+  if (!riskChart) {
+    const ctx = document.getElementById("risk-chart").getContext("2d");
     riskChart = new Chart(ctx, {
       type: "bar",
-      data: { labels: ["LOW","WATCH","WARNING","HIGH"], datasets: [{ label:"Nodes", data:[0,0,0,0] }] },
+      data: {
+        labels: RISK_LABELS,
+        datasets: [{
+          label: "Nodes",
+          data: [0, 0, 0, 0],
+          backgroundColor: CHART_COLORS.map(c => c + "cc"),
+          borderColor: CHART_COLORS,
+          borderWidth: 1,
+          borderRadius: 6,
+        }],
+      },
       options: {
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
-        scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } },
-        onClick: (evt, elements) => {
+        ...CHART_DEFAULTS,
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        onClick(_, elements) {
           if (!elements.length) return;
-          const idx = elements[0].index;
-          const label = riskChart.data.labels[idx];
-          document.getElementById("riskFilter").value = label;
+          document.getElementById("risk-filter").value = RISK_LABELS[elements[0].index];
           renderAll();
-        }
-      }
+        },
+      },
     });
   }
 
-  if (!topChart){
-    const ctx = document.getElementById("topChart").getContext("2d");
+  if (!topChart) {
+    const ctx = document.getElementById("top-chart").getContext("2d");
     topChart = new Chart(ctx, {
       type: "bar",
-      data: { labels: [], datasets: [{ label:"prob%", data:[] }] },
+      data: { labels: [], datasets: [{ label: "prob%", data: [], backgroundColor: "#ef4444aa", borderRadius: 4 }] },
       options: {
+        ...CHART_DEFAULTS,
         indexAxis: "y",
-        responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
-        scales:{ x:{ beginAtZero:true, suggestedMax:100 } }
-      }
+        scales: { x: { beginAtZero: true, suggestedMax: 100 } },
+      },
     });
   }
 }
 
-function updateCharts(){
-  ensureCharts();
+function updateCharts() {
+  initCharts();
 
-  const c = {LOW:0, WATCH:0, WARNING:0, HIGH:0};
-  for (const r of RAW){
+  const counts = { LOW: 0, WATCH: 0, WARNING: 0, HIGH: 0 };
+  for (const r of RAW) {
     const rn = riskName(r.risk);
-    if (c[rn] !== undefined) c[rn]++;
+    if (rn in counts) counts[rn]++;
   }
-  const labels = ["LOW","WATCH","WARNING","HIGH"];
-  riskChart.data.labels = labels;
-  riskChart.data.datasets[0].data = labels.map(l => c[l]);
-  riskChart.update(); // :contentReference[oaicite:4]{index=4}
+  riskChart.data.datasets[0].data = RISK_LABELS.map(l => counts[l]);
+  riskChart.update();
 
-  const topN = Number(document.getElementById("topN").value || 10);
-  const top = RAW.slice().sort((a,b)=>probPercentNumber(b)-probPercentNumber(a)).slice(0, topN);
-  topChart.data.labels = top.map(r => nodeIdOnly(r.node));
-  topChart.data.datasets[0].data = top.map(r => probPercentNumber(r));
-  topChart.update(); // :contentReference[oaicite:5]{index=5}
+  const topN = Number(document.getElementById("top-n").value) || 10;
+  const top  = RAW.slice().sort((a, b) => probNum(b) - probNum(a)).slice(0, topN);
+  topChart.data.labels            = top.map(r => nodeIdOnly(r.node));
+  topChart.data.datasets[0].data  = top.map(r => probNum(r));
+  topChart.update();
 }
 
-function initMapIfNeeded(){
+/* ── Map ────────────────────────────────────────────────────────────────── */
+function initMap() {
   if (map) return;
-
-  map = L.map("map", { zoomControl: true }).setView([14.5, 108.0], 6);
+  map      = L.map("map", { zoomControl: true }).setView([14.5, 108.0], 6);
+  mapLayer = L.layerGroup().addTo(map);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
-    attribution: "&copy; OpenStreetMap"
+    attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
-
-  mapLayer = L.layerGroup().addTo(map);
 }
 
-function updateMap(){
-  const show = document.getElementById("showMap").checked;
+function updateMap() {
+  const show   = document.getElementById("show-map").checked;
   const mapDiv = document.getElementById("map");
   mapDiv.style.display = show ? "block" : "none";
   if (!show) return;
 
-  initMapIfNeeded();
+  initMap();
 
-  const onlyAlertMap = document.getElementById("mapOnlyAlert").checked;
-  const radiusKm = Number(document.getElementById("radiusKm").value || 10);
-  document.getElementById("radiusText").textContent = `${radiusKm} km`;
+  const onlyAlert = document.getElementById("map-only-alert").checked;
+  const radiusKm  = Number(document.getElementById("radius-km").value) || 10;
+  document.getElementById("radius-text").textContent = `${radiusKm} km`;
 
-  const rows = (onlyAlertMap ? RAW.filter(r => Number(r.alert_next7)===1) : getFilteredRows())
-                .filter(isValidLatLon);
+  const rows = (onlyAlert
+    ? RAW.filter(r => Number(r.alert_next7) === 1)
+    : getFilteredRows()
+  ).filter(hasLatLon);
 
   mapLayer.clearLayers();
+  const bounds = [];
 
-  const latlngs = [];
-  for (const r of rows){
-    const lat = Number(r.lat), lon = Number(r.lon);
-    const rn = riskName(r.risk);
-    const col = riskColor(rn);
+  for (const r of rows) {
+    const lat    = Number(r.lat);
+    const lon    = Number(r.lon);
+    const rn     = riskName(r.risk);
+    const col    = riskColor(rn);
+    const nodeId = nodeIdOnly(r.node);
+    const pct    = probNum(r).toFixed(2);
 
-    // Điểm (circleMarker) + setStyle có thể đổi màu fill/viền 
-    const marker = L.circleMarker([lat, lon], {
-      radius: 7,
-      color: col,
-      weight: 2,
-      fillColor: col,
-      fillOpacity: 0.9
-    });
-
-    const id = nodeIdOnly(r.node);
-    const p = probPercentNumber(r).toFixed(2);
-    const popupHtml =
-      `<b>Node ID:</b> ${id}<br/>` +
-      `<b>Prob:</b> ${p}%<br/>` +
+    const popup =
+      `<b>Node:</b> ${nodeId}<br/>` +
+      `<b>Prob:</b> ${pct}%<br/>` +
       `<b>Risk:</b> ${r.risk}<br/>` +
-      `<b>Alert:</b> ${Number(r.alert_next7)===1 ? "⚠️ 1" : "0"}<br/>` +
-      `<b>lat/lon:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      `<b>Alert:</b> ${Number(r.alert_next7) === 1 ? "⚠️ Yes" : "No"}<br/>` +
+      `<b>Coords:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
-    marker.bindPopup(popupHtml);
+    L.circleMarker([lat, lon], {
+      radius: 7, color: col, weight: 2, fillColor: col, fillOpacity: 0.9,
+    }).bindPopup(popup).addTo(mapLayer);
 
-    // Khoanh vùng (circle)
-    const area = L.circle([lat, lon], {
-      radius: radiusKm * 1000,
-      color: col,
-      weight: 1,
-      fillColor: col,
-      fillOpacity: 0.12
-    }).addTo(mapLayer);
+    L.circle([lat, lon], {
+      radius: radiusKm * 1000, color: col, weight: 1, fillColor: col, fillOpacity: 0.1,
+    }).bindPopup(popup).addTo(mapLayer);
 
-    // click vào vòng tròn cũng hiện popup
-    area.bindPopup(popupHtml);
-
-
-    marker.addTo(mapLayer);
-
-    // Khoanh vùng (circle) radius tính theo meters (km * 1000) 
-    // L.circle([lat, lon], {
-    //   radius: radiusKm * 1000,
-    //   color: col,
-    //   weight: 1,
-    //   fillColor: col,
-    //   fillOpacity: 0.12
-    // }).addTo(mapLayer);
-
-    latlngs.push([lat, lon]);
+    bounds.push([lat, lon]);
   }
 
-  if (latlngs.length){
-    map.fitBounds(latlngs, { padding: [20, 20] }); // fitBounds trong Leaflet
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [24, 24] });
   }
 }
 
-function renderAll(){
-  updateCards();
+/* ── CSV export ─────────────────────────────────────────────────────────── */
+function exportCSV() {
+  const rows = getFilteredRows();
+  if (!rows.length) return;
+
+  const cols  = ["node", "prob_%", "risk", "alert_next7", "advice", "lat", "lon"];
+  const lines = [
+    cols.join(","),
+    ...rows.map(r =>
+      cols.map(c => `"${String(r[c] ?? "").replaceAll('"', '""')}"`).join(",")
+    ),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: "fire_risk_filtered.csv" });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Render all ─────────────────────────────────────────────────────────── */
+function renderAll() {
+  updateStats();
   updateCharts();
   renderTable();
   updateMap();
 }
 
-function exportCSV(){
-  const rows = getFilteredRows();
-  if (!rows.length) return;
-
-  const cols = ["node","prob_%","risk","alert_next7","advice","lat","lon"];
-  const lines = [
-    cols.join(","),
-    ...rows.map(r => cols.map(c => {
-      const v = (r[c] ?? "");
-      const s = String(v).replaceAll('"','""');
-      return `"${s}"`;
-    }).join(","))
-  ];
-  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "fire_risk_filtered.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function loadLatest(){
-  const res = await fetch("/api/latest");
+/* ── API calls ──────────────────────────────────────────────────────────── */
+async function loadLatest() {
+  const res  = await fetch("/api/latest");
   const data = await res.json();
 
   RAW = data.rows || [];
   const m = data.meta || {};
 
-  document.getElementById("metaLine").textContent =
-    `BASE ${m.base_day||"-"} | FORECAST ${m.forecast_from||"-"} → ${m.forecast_to||"-"} | TH ${m.th_alert ?? "-"}`;
-  document.getElementById("tsLine").textContent = `Updated: ${data.ts || "N/A"}`;
+  document.getElementById("meta-line").textContent =
+    `BASE ${m.base_day || "—"} | FORECAST ${m.forecast_from || "—"} → ${m.forecast_to || "—"} | TH ${m.th_alert ?? "—"}`;
+  document.getElementById("ts-line").textContent = `Updated: ${data.ts || "N/A"}`;
 
   renderAll();
 }
 
-document.getElementById("q").addEventListener("input", renderAll);
-document.getElementById("riskFilter").addEventListener("change", renderAll);
-document.getElementById("onlyAlert").addEventListener("change", renderAll);
-document.getElementById("topN").addEventListener("change", () => { updateCharts(); });
-document.getElementById("exportBtn").addEventListener("click", exportCSV);
+/* ── Event listeners ────────────────────────────────────────────────────── */
+document.getElementById("search").addEventListener("input",   renderAll);
+document.getElementById("risk-filter").addEventListener("change", renderAll);
+document.getElementById("only-alert").addEventListener("change",  renderAll);
+document.getElementById("top-n").addEventListener("change", updateCharts);
+document.getElementById("export-btn").addEventListener("click", exportCSV);
 
-document.getElementById("showMap").addEventListener("change", updateMap);
-document.getElementById("mapOnlyAlert").addEventListener("change", updateMap);
-document.getElementById("radiusKm").addEventListener("input", updateMap);
+document.getElementById("show-map").addEventListener("change",       updateMap);
+document.getElementById("map-only-alert").addEventListener("change", updateMap);
+document.getElementById("radius-km").addEventListener("input",      updateMap);
 
-document.getElementById("runBtn").onclick = async () => {
-  const btn = document.getElementById("runBtn");
-  btn.disabled = true; btn.textContent = "Running...";
-  await fetch("/api/run", {method:"POST"});
-  await loadLatest();
-  btn.disabled = false; btn.textContent = "Run now";
-};
+document.getElementById("run-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("run-btn");
+  btn.disabled    = true;
+  btn.textContent = "Running…";
+  try {
+    await fetch("/api/run", { method: "POST" });
+    await loadLatest();
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = "Run now";
+  }
+});
 
+/* ── Boot ───────────────────────────────────────────────────────────────── */
 loadLatest();
-setInterval(loadLatest, 3600000);
+setInterval(loadLatest, 3_600_000);   // Auto-refresh every hour
 </script>
-
 </body>
 </html>

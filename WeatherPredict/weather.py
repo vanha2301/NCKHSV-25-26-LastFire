@@ -1,95 +1,145 @@
-import os, time
-import requests
+"""
+weather.py
+----------
+Fetch daily weather data from the Visual Crossing API for a set of spatial
+nodes and save the results to a single combined CSV file.
+
+Usage:
+    Set the VC_API_KEY environment variable (or hard-code for development),
+    ensure nodes.csv exists in the same directory, then run:
+
+        python weather.py
+
+Output:
+    weather_all_nodes.csv — Merged daily records for all nodes.
+"""
+
+import os
+import time
+
 import pandas as pd
+import requests
 from pathlib import Path
 
-# ======================
-# CONFIG
-# ======================
-API_KEY = os.getenv("VC_API_KEY", "Y4NHLNSCH7YTG8ZMDRWAVGJFF")
-START = "2025-09-01"
-END   = "2026-01-31"
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+API_KEY    = os.getenv("VC_API_KEY", "Y4NHLNSCH7YTG8ZMDRWAVGJFF")
+START      = "2025-09-01"
+END        = "2026-01-31"
+NODES_CSV  = Path(__file__).parent / "nodes.csv"
+OUT_PATH   = Path(__file__).parent / "weather_all_nodes.csv"
 
-NODES_CSV = "nodes.csv"  # bạn tạo file này
-OUT_PATH = Path("weather_dec2026_all_nodes.csv")
-params = {
-    "include": "days",
+# Seconds to sleep between API calls (avoids rate-limiting)
+REQUEST_DELAY = 0.25
+
+API_PARAMS = {
+    "include":   "days",
     "unitGroup": "metric",
-    "lang": "vi",
-    "timezone": "Asia/Ho_Chi_Minh",
-    "key": API_KEY,
+    "lang":      "vi",
+    "timezone":  "Asia/Ho_Chi_Minh",
+    "key":       API_KEY,
 }
 
+BASE_URL = (
+    "https://weather.visualcrossing.com"
+    "/VisualCrossingWebServices/rest/services/timeline"
+)
+
+# ---------------------------------------------------------------------------
+# HTTP session (connection pooling)
+# ---------------------------------------------------------------------------
 session = requests.Session()
 
-def fetch_range(lat, lon, start, end):
-    url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{start}/{end}"
-    r = session.get(url, params=params, timeout=35)
-    r.raise_for_status()
-    return r.json()
 
-# ======================
-# LOAD nodes.csv
-# ======================
-nodes_df = pd.read_csv(NODES_CSV)
-need_cols = {"node","lat","lon"}
-if not need_cols.issubset(nodes_df.columns):
-    raise ValueError(f"nodes.csv must have columns: {need_cols}, but got {list(nodes_df.columns)}")
+def fetch_range(lat: float, lon: float, start: str, end: str) -> dict:
+    """
+    Fetch daily weather records for a lat/lon point over a date range.
 
-rows_all = []
+    Args:
+        lat:   Latitude of the node.
+        lon:   Longitude of the node.
+        start: Start date string, format 'YYYY-MM-DD'.
+        end:   End date string,   format 'YYYY-MM-DD'.
 
-print("Nodes:", len(nodes_df), "| Range:", START, "->", END)
+    Returns:
+        Parsed JSON response dict from the Visual Crossing API.
 
-for i, row in nodes_df.iterrows():
-    node = str(row["node"])
-    lat  = float(row["lat"])
-    lon  = float(row["lon"])
+    Raises:
+        requests.HTTPError: If the API returns a non-2xx status code.
+    """
+    url = f"{BASE_URL}/{lat},{lon}/{start}/{end}"
+    response = session.get(url, params=API_PARAMS, timeout=35)
+    response.raise_for_status()
+    return response.json()
 
-    print(f"[{i+1}/{len(nodes_df)}] Fetching node={node} ({lat},{lon}) ...")
 
-    data = fetch_range(lat, lon, START, END)
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main() -> None:
+    nodes_df = pd.read_csv(NODES_CSV)
+    required_cols = {"node", "lat", "lon"}
+    if not required_cols.issubset(nodes_df.columns):
+        raise ValueError(
+            f"nodes.csv must contain columns {required_cols}, "
+            f"got: {list(nodes_df.columns)}"
+        )
 
-    meta_common = {
-        "resolvedAddress": data.get("resolvedAddress"),
-        "tz": data.get("timezone"),
-        "tzOffset": data.get("tzoffset"),
-        "queryCost": data.get("queryCost"),
-    }
+    print(f"Nodes: {len(nodes_df)} | Range: {START} → {END}")
 
-    for d in data.get("days", []):
-        rec = dict(d)
-        rec.pop("hours", None)
+    rows_all = []
 
-        # list -> string
-        if isinstance(rec.get("preciptype"), list):
-            rec["preciptype"] = ",".join(rec["preciptype"])
-        if isinstance(rec.get("stations"), list):
-            rec["stations"] = ",".join(rec["stations"])
+    for i, row in nodes_df.iterrows():
+        node = str(row["node"])
+        lat  = float(row["lat"])
+        lon  = float(row["lon"])
 
-        rec.update(meta_common)
-        rec.update({
-            "node": node,
-            "lat": lat,
-            "lon": lon,
-            "date": rec.get("datetime"),   # ✅ ngày thật của record
-        })
+        print(f"  [{i + 1}/{len(nodes_df)}] node={node} ({lat}, {lon}) …", end=" ", flush=True)
 
-        rows_all.append(rec)
+        data = fetch_range(lat, lon, START, END)
 
-    time.sleep(0.25)  # nghỉ nhẹ tránh rate limit
+        common_meta = {
+            "resolvedAddress": data.get("resolvedAddress"),
+            "tz":              data.get("timezone"),
+            "tzOffset":        data.get("tzoffset"),
+            "queryCost":       data.get("queryCost"),
+        }
 
-df_out = pd.DataFrame(rows_all)
+        for day in data.get("days", []):
+            record = dict(day)
+            record.pop("hours", None)
 
-# chuẩn hoá date
-df_out["date"] = pd.to_datetime(df_out["date"]).dt.strftime("%Y-%m-%d")
+            # Flatten list fields to comma-separated strings
+            for field in ("preciptype", "stations"):
+                if isinstance(record.get(field), list):
+                    record[field] = ",".join(record[field])
 
-# lọc đúng range (phòng API trả thừa)
-df_out = df_out[(df_out["date"] >= START) & (df_out["date"] <= END)].copy()
+            record.update(common_meta)
+            record.update({
+                "node": node,
+                "lat":  lat,
+                "lon":  lon,
+                "date": record.get("datetime"),
+            })
+            rows_all.append(record)
 
-# sort đẹp
-df_out = df_out.sort_values(["node","date"]).reset_index(drop=True)
+        print(f"OK ({len(data.get('days', []))} days)")
+        time.sleep(REQUEST_DELAY)
 
-df_out.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
-print("Saved:", OUT_PATH, "| rows:", len(df_out))
-print("Columns:", len(df_out.columns))
-df_out.head(3)
+    df_out = pd.DataFrame(rows_all)
+
+    # Normalise date column
+    df_out["date"] = pd.to_datetime(df_out["date"]).dt.strftime("%Y-%m-%d")
+
+    # Drop any rows outside the requested range (API may return extra days)
+    df_out = df_out[(df_out["date"] >= START) & (df_out["date"] <= END)].copy()
+
+    df_out = df_out.sort_values(["node", "date"]).reset_index(drop=True)
+    df_out.to_csv(OUT_PATH, index=False, encoding="utf-8-sig")
+
+    print(f"\nSaved: {OUT_PATH}  ({len(df_out)} rows, {len(df_out.columns)} columns)")
+
+
+if __name__ == "__main__":
+    main()
